@@ -2,7 +2,9 @@ library(tximport)
 library(readr)
 setwd("/home/frank/R_projects/ALS_RNASeq/")
 WD <- getwd()
-samples <- read.table(file.path(WD, "samples.txt"), header = TRUE) #read in sample list file
+samples <- read.table(file.path(WD, "samples_pooled.txt"), header = TRUE) #read in sample list file
+samples <- samples[-c(4,5,8,9), ] #filter for day 90 samples
+
 files <- file.path(WD, "quants", samples$location, "quant.sf") #identify file locations
 names(files) <- samples$sample #name samples 
 all(file.exists(files)) # are all files present?
@@ -19,9 +21,9 @@ sampleTable <- data.frame(condition = samples$condition) #make condition table
 rownames(sampleTable) <- colnames(txi$counts) #add sample names to condition table
 dds <- DESeqDataSetFromTximport(txi, sampleTable, ~condition) #prepare DESeq2 file for import
 dds <- DESeq(dds) #do differential expression
-res_BBvs17_60 <- results(dds, contrast=c("condition","BB_90","SS17_60")) #store results of above as res
-res_BBvs17_90 <- results(dds, contrast=c("condition","BB_90","SS17_90")) #store results of above as res
-res_BBvs45_60 <- results(dds, contrast=c("condition","BB_90","SS45_60")) #store results of above as res
+res <- results(dds, contrast=c("condition","45BB","SS45_60")) #store results of above as res
+#res_BBvs17_90 <- results(dds, contrast=c("condition","BB_90","SS17_90")) #store results of above as res
+#res_BBvs45_60 <- results(dds, contrast=c("condition","BB_90","SS45_60")) #store results of above as res
 
 gene_synonym <- unique(tx2gene[, -1])
 #head(rownames(res))
@@ -50,14 +52,17 @@ p + geom_point() +
   scale_x_log10() + 
   scale_y_continuous(limits = c(-2, 2)) +
   scale_color_manual(values = c("lightblue", "salmon", "green")) + 
-  scale_shape_manual(values = c(0, 1, 2))
+  scale_shape_manual(values = c(0, 1, 2)) +
+  labs(shape = "")
 
-
+#Volcano plot
 subset(z, padj < 0.05 & abs(log2FoldChange) > 1 )[ , -(3:5)]
 
 p <- ggplot(z, aes(x = log2FoldChange, y = 1 - padj, col = abs(log2FoldChange)))
 p + geom_point(size = 1) + scale_y_log10()
 
+
+##Clustered Top 50 Heatmap
 z[order((z$padj)), ]
 
 top.count <- 50
