@@ -2,8 +2,8 @@ library(tximport)
 library(readr)
 setwd("/home/frank/R_projects/ALS_RNASeq/")
 WD <- getwd()
-samples <- read.table(file.path(WD, "samples_pooled.txt"), header = TRUE) #read in sample list file
-samples <- samples[-c(4,5,8,9), ] #filter for day 90 samples
+samples <- read.table(file.path(WD, "samples.txt"), header = TRUE) #read in sample list file
+samples <- samples[ which(samples$condition == "SS17_60" | samples$condition == "SS17_90"), ] #filter for day SS17 60 and 90 samples
 
 files <- file.path(WD, "quants", samples$location, "quant.sf") #identify file locations
 names(files) <- samples$sample #name samples 
@@ -13,7 +13,7 @@ txi <- tximport(files, type = "salmon", tx2gene = tx2gene) # gene-level estimat
 txi.tx <- tximport(files, type = "salmon", txOut = TRUE, tx2gene = tx2gene) #transcript-level estimate
 txi.sum <- summarizeToGene(txi.tx, tx2gene) #summarixe transcripts to gene
 all.equal(txi$counts, txi.sum$counts) #are txi and txi.sum equivalent?
-write.csv(txi,"txi.csv")
+write.csv(txi,"60vs90_txi.csv")
 
 #DESeq2
 library(DESeq2)
@@ -21,7 +21,7 @@ sampleTable <- data.frame(condition = samples$condition) #make condition table
 rownames(sampleTable) <- colnames(txi$counts) #add sample names to condition table
 dds <- DESeqDataSetFromTximport(txi, sampleTable, ~condition) #prepare DESeq2 file for import
 dds <- DESeq(dds) #do differential expression
-res <- results(dds, contrast=c("condition","45BB","SS45_60")) #store results of above as res
+res <- results(dds, contrast=c("condition","SS17_60","SS17_90")) #store results of above as res
 #res_BBvs17_90 <- results(dds, contrast=c("condition","BB_90","SS17_90")) #store results of above as res
 #res_BBvs45_60 <- results(dds, contrast=c("condition","BB_90","SS45_60")) #store results of above as res
 
@@ -39,7 +39,10 @@ z$chr <- gene_synonym$chr[match(rownames(res), gene_synonym$gene_id)]
 z$start <- gene_synonym$start[match(rownames(res), gene_synonym$gene_id)]
 z$end <- gene_synonym$end[match(rownames(res), gene_synonym$gene_id)]
 z$description <- gene_synonym$description[match(rownames(res), gene_synonym$gene_id)]
-write.csv(z, "res.csv")
+
+#z<- z [ which(z$chr == "17"), ] #select for chr17
+
+write.csv(z, "60vs90_res.csv")
 
 # Show change in expression by mean expression level
 # Would be better normalized to feature size
@@ -51,9 +54,14 @@ p <- ggplot(z, aes(x = baseMean + 0.01, y = log2FoldChange,
 p + geom_point() + 
   scale_x_log10() + 
   scale_y_continuous(limits = c(-2, 2)) +
-  scale_color_manual(values = c("lightblue", "salmon", "green")) + 
-  scale_shape_manual(values = c(0, 1, 2)) +
-  labs(shape = "")
+  scale_color_manual(labels=c("p>0.05", "Below threshold", "p<0.05"),
+                     values = c("lightblue", "salmon", "green"), 
+                     guide_legend(title="")) + 
+  scale_shape_manual(guide="none", values = c(0, 1, 2)) +
+  labs(title="SS 17-46 Mbp Day 60 vs Day 90 Global Expression Profile",
+       x="Expression") +
+  guides(colour = guide_legend(override.aes = list(shape = c(0,1,2))))
+  
 
 #Volcano plot
 subset(z, padj < 0.05 & abs(log2FoldChange) > 1 )[ , -(3:5)]
